@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
@@ -357,7 +359,10 @@ private fun HomeScreen(
     var error by remember { mutableStateOf<String?>(null) }
 
     Column(
-        modifier = Modifier.padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text("OverCall (${BuildConfig.CLUSTER})", style = MaterialTheme.typography.titleLarge)
@@ -374,9 +379,9 @@ private fun HomeScreen(
         Text("Required so the pay bubble pops up automatically when a call starts.",
             style = MaterialTheme.typography.bodySmall)
         fun mark(b: Boolean) = if (b) "✓" else "✗"
-        Text("$ {mark(profile.canDrawOverlays)} Draw over other apps")
-        Text("$ {mark(profile.canReadPhoneState)} Read phone state")
-        Text("$ {mark(profile.canReadCallLog)} Read call log (other party's number)")
+        Text("${mark(profile.canDrawOverlays)} Draw over other apps")
+        Text("${mark(profile.canReadPhoneState)} Read phone state")
+        Text("${mark(profile.canReadCallLog)} Read call log (other party's number)")
 
         if (!profile.canReadPhoneState || !profile.canReadCallLog) {
             Button(onClick = {
@@ -463,14 +468,16 @@ private fun HomeScreen(
                 Text(if (registration == null) "Register Phone" else "Re-register Phone")
             }
             Button(onClick = {
-                val intent = Intent(activity, OverCallForegroundService::class.java).apply {
-                    action = OverCallForegroundService.ACTION_REOPEN
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    activity.startForegroundService(intent)
-                } else {
-                    activity.startService(intent)
-                }
+                // Attach the overlay directly via the app-scoped singleton —
+                // no foreground service involved. Going through the FGS for
+                // a manual re-attach was both unnecessary and broken: the
+                // ACTION_REOPEN branch never called startForeground(), so
+                // Android killed the process after 5s with
+                // ForegroundServiceDidNotStartInTimeException. The bubble
+                // only needs SYSTEM_ALERT_WINDOW, which we already gate via
+                // the Call detection section above.
+                val app = activity.application as com.overcall.OverCallApp
+                app.overlay.attach()
             }) { Text("Re-attach Bubble") }
 
             TextButton(onClick = onDisconnect) { Text("Disconnect Wallet") }

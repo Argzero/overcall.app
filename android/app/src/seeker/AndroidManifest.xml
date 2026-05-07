@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Seeker flavor: feature-gated to Solana Seeker hardware via uses-feature. The
-  dApp Store will only surface this APK on Seeker devices. Other Android phones
-  cannot install it.
+  Seeker flavor: declares the Seeker feature for dApp Store discovery, but
+  required="false" so sideload works on units whose firmware doesn't yet
+  advertise the feature flag. (Encountered on at least one production Seeker
+  in early 2026 — `pm list features` reports no `com.solanamobile.*` entries
+  at all, even though brand=solanamobile / model=Seeker. With required="true"
+  the install would be rejected as "missing feature.") Runtime checks in
+  DeviceProfile still verify Seed Vault availability before doing anything
+  Seeker-specific.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature
         android:name="com.solanamobile.feature.seeker"
-        android:required="true"/>
+        android:required="false"/>
 </manifest>

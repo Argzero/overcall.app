@@ -7,6 +7,7 @@ import com.solana.mobilewalletadapter.clientlib.Blockchain
 import com.solana.mobilewalletadapter.clientlib.ConnectionIdentity
 import com.solana.mobilewalletadapter.clientlib.MobileWalletAdapter
 import com.solana.mobilewalletadapter.clientlib.Solana
+import com.solana.mobilewalletadapter.clientlib.TransactionParams
 import com.solana.mobilewalletadapter.clientlib.TransactionResult
 import com.solana.publickey.SolanaPublicKey
 
@@ -128,7 +129,23 @@ class MwaSigner(
         transactions: List<ByteArray>,
     ): SendOutcome {
         val result = adapter.transact(sender) {
-            signAndSendTransactions(transactions.toTypedArray()).signatures
+            // Phantom-mobile's MWA implementation strictly validates that
+            // `params.minContextSlot` is present (zod expects a number;
+            // omitting it makes Phantom error "Required" before showing any
+            // sign UI). The MWA spec says the field is optional, but we
+            // pass 0 unconditionally so any wallet that hard-requires the
+            // key works. minContextSlot=0 is a no-op constraint (the
+            // wallet will broadcast at any slot ≥ 0 which is always true).
+            signAndSendTransactions(
+                transactions.toTypedArray(),
+                TransactionParams(
+                    minContextSlot = 0,
+                    commitment = null,
+                    skipPreflight = null,
+                    maxRetries = null,
+                    waitForCommitmentToSendNextTransaction = null,
+                ),
+            ).signatures
         }
         return when (result) {
             is TransactionResult.Success -> {

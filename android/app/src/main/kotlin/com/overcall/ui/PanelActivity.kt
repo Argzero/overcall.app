@@ -7,7 +7,6 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,13 +34,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.overcall.BuildConfig
 import com.overcall.call.PhoneFormatter
 import com.overcall.invite.InviteLink
-import com.overcall.invite.InviteQr
 import com.overcall.pay.MwaSigner
 import com.overcall.pay.PayFlow
 import com.overcall.pay.WalletHolder
@@ -49,6 +47,8 @@ import com.overcall.registry.RegistryClient
 import com.overcall.registry.SolanaRpc
 import com.overcall.util.Base58
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 
 /**
@@ -80,6 +80,23 @@ class PanelActivity : ComponentActivity() {
         if (phoneE164 == null) {
             finish(); return
         }
+
+        // Auto-close when the active call ends. Without this the user could
+        // pay post-hoc — open the bubble during a call, hang up, then send
+        // money to the (no-longer-on-the-line) caller. Spec calls for the
+        // payment screen to close on hangup.
+        val app = application as com.overcall.OverCallApp
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                app.activeCallPhone.collect { active ->
+                    if (active == null) {
+                        // Call ended (or never was). Close this panel.
+                        finish()
+                    }
+                }
+            }
+        }
+
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -157,8 +174,12 @@ private fun PanelCard(
                 PanelState.Resolving -> Text("Looking up recipient on devnet…")
 
                 is PanelState.Ready -> {
-                    Text("Recipient: ${s.record.owner.base58().take(8)}…",
-                        style = MaterialTheme.typography.bodySmall)
+                    // The resolver pulled the registered wallet for the
+                    // other caller's E.164 via phone-registry's reverse
+                    // index — no QR needed because both parties are on
+                    // the call already.
+                    Text("→ ${s.record.owner.base58().take(8)}…",
+                        style = MaterialTheme.typography.bodyMedium)
                     if (sender == null) {
                         Text("No wallet connected. Open OverCall and tap Connect Wallet first.")
                     } else {
@@ -172,28 +193,33 @@ private fun PanelCard(
                         Text("Network fee: 0.01% (added on top)",
                             style = MaterialTheme.typography.bodySmall)
 
-                        Button(
-                            enabled = sender != null && amountSol.toDoubleOrNull() != null,
-                            onClick = {
-                                val amt = (amountSol.toDouble() * 1_000_000_000).toLong()
-                                state = PanelState.Sending
-                                scope.launch {
-                                    val res = payFlow.paySol(
-                                        resultSender = resultSender,
-                                        sender = sender,
-                                        phoneE164 = phoneE164,
-                                        amountLamports = amt,
-                                    )
-                                    state = when (res) {
-                                        is PayFlow.Result.Success -> PanelState.Sent(
-                                            base58Sig(res.signature),
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                enabled = sender != null && amountSol.toDoubleOrNull() != null,
+                                onClick = {
+                                    val amt = (amountSol.toDouble() * 1_000_000_000).toLong()
+                                    state = PanelState.Sending
+                                    scope.launch {
+                                        val res = payFlow.paySol(
+                                            resultSender = resultSender,
+                                            sender = sender,
+                                            phoneE164 = phoneE164,
+                                            amountLamports = amt,
                                         )
-                                        is PayFlow.Result.NotRegistered -> PanelState.Unregistered(res.phoneE164)
-                                        is PayFlow.Result.Failure -> PanelState.Failed(res.message)
+                                        state = when (res) {
+                                            is PayFlow.Result.Success -> PanelState.Sent(
+                                                base58Sig(res.signature),
+                                            )
+                                            is PayFlow.Result.NotRegistered -> PanelState.Unregistered(res.phoneE164)
+                                            is PayFlow.Result.Failure -> PanelState.Failed(res.message)
+                                        }
                                     }
-                                }
-                            },
-                        ) { Text("Send") }
+                                },
+                            ) { Text("Send  ➤") }
+                            OutlinedButton(onClick = onClose) { Text("✕  Close") }
+                        }
                     }
                 }
 
@@ -227,6 +253,17 @@ private fun PanelCard(
 
 private fun base58Sig(bytes: ByteArray): String = Base58.encode(bytes)
 
+/**
+ * Shown when the resolver returns null for the other caller's E.164 — the
+ * person on the other end of the call doesn't have OverCall set up.
+ *
+ * No QR here on purpose: both parties are on a phone call together, neither
+ * can scan the other's screen. The path forward is text — share the invite
+ * link via SMS / messenger / whatever side channel they have, including
+ * just reading the URL aloud over the call. The receiver opens the link,
+ * installs OverCall, registers their phone — then a re-resolve in this
+ * panel surfaces them as Ready and the user can send.
+ */
 @Composable
 private fun UnregisteredCard(
     displayPhone: String,
@@ -236,25 +273,19 @@ private fun UnregisteredCard(
     Text("$displayPhone — not on OverCall")
     Spacer(Modifier.height(4.dp))
     Text(
-        "Share this link so they can install OverCall and register their phone.",
+        "Send them this link so they can install OverCall and register " +
+            "their phone. After they finish, tap their bubble again.",
         style = MaterialTheme.typography.bodyMedium,
     )
 
     if (inviter == null) {
-        Text("Connect a wallet first to generate a referral link.")
+        Text("Connect a wallet first to generate an invite link.")
         return
     }
 
     val link = remember(inviter) { InviteLink.forInviter(inviter) }
-    val qr = remember(link) { InviteQr.render(link, sizePx = 512) }
     val ctx = LocalContext.current
 
-    Spacer(Modifier.height(12.dp))
-    Image(
-        bitmap = qr.asImageBitmap(),
-        contentDescription = "Invite QR code",
-        modifier = Modifier.size(220.dp),
-    )
     Spacer(Modifier.height(8.dp))
     Text(link, style = MaterialTheme.typography.bodySmall)
     Spacer(Modifier.height(8.dp))

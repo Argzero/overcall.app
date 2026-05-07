@@ -37,13 +37,10 @@ import kotlinx.coroutines.launch
  */
 class OverCallForegroundService : Service() {
 
-    private val overlay: OverlayController by lazy {
-        OverlayController(
-            context = applicationContext,
-            onDismissed = ::onBubbleDismissed,
-            onTap = ::onBubbleTapped,
-        )
-    }
+    // App-scoped overlay singleton — same instance CallWatcher uses, so we
+    // never end up with duplicate bubble windows. Owned by OverCallApp.
+    private val overlay: OverlayController
+        get() = (applicationContext as com.overcall.OverCallApp).overlay
 
     private val rpc by lazy { SolanaRpc(BuildConfig.RPC_URL) }
     private val ws by lazy { SolanaWebSocket(BuildConfig.RPC_URL) }
@@ -65,20 +62,30 @@ class OverCallForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
+                // Bubble is now attached by CallWatcher directly (Android
+                // 14+ won't let us start an FGS from a background telephony
+                // callback). This service still owns WalletWatcher (the WS
+                // subscription that surfaces "received payment" updates on
+                // the bubble) and the in-call notification. The overlay
+                // attach below is a no-op when CallWatcher already attached;
+                // we keep the call so manual re-attach (ACTION_REOPEN, e.g.
+                // from the notification action) still works.
                 phoneE164 = intent.getStringExtra(EXTRA_PHONE)
-                startAsForeground(showReopenAction = false)
+                if (!tryPromoteForeground()) return START_NOT_STICKY
                 overlay.setRecipient(phoneE164)
                 overlay.attach()
                 startWalletWatcher()
             }
             ACTION_REOPEN -> {
+                if (!tryPromoteForeground()) return START_NOT_STICKY
                 overlay.setRecipient(phoneE164)
-                if (overlay.attach()) {
-                    refreshNotification(showReopenAction = false)
-                }
+                overlay.attach()
             }
             ACTION_STOP -> {
-                overlay.detach()
+                // Don't touch the overlay here — CallWatcher owns the
+                // bubble lifecycle (attach on OFFHOOK, detach on IDLE),
+                // and the FGS may stop while a call is still active
+                // (e.g. when Android 14+ refuses our foreground promotion).
                 stopWalletWatcher()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -90,7 +97,11 @@ class OverCallForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        overlay.detach()
+        // Same reasoning as ACTION_STOP: the bubble is owned by
+        // CallWatcher (app-scoped), not by this service. FGS getting
+        // torn down (lmkd, system memory pressure, foreground-promotion
+        // refusal) must NOT yank the bubble out from under an active
+        // call.
         stopWalletWatcher()
         scope.cancel()
     }
@@ -153,22 +164,27 @@ class OverCallForegroundService : Service() {
         ServiceCompat.startForeground(this, NOTIF_ID, buildNotification(showReopenAction), types)
     }
 
+    /**
+     * Promote to foreground, catching the Android 14+
+     * `ForegroundServiceStartNotAllowedException` that fires when our
+     * process is too "background" to host a phoneCall-type FGS. On
+     * failure we self-stop instead of crashing the whole app — the
+     * bubble is already attached by CallWatcher (overlay path), so the
+     * user-visible feature still works; we just lose the WalletWatcher
+     * WS subscription for this call.
+     */
+    private fun tryPromoteForeground(): Boolean = try {
+        startAsForeground(showReopenAction = false)
+        true
+    } catch (t: Throwable) {
+        Log.w(TAG, "FGS promotion blocked (${t.javaClass.simpleName}: ${t.message}) — service self-stopping", t)
+        try { stopSelf() } catch (_: Throwable) { /* ignore */ }
+        false
+    }
+
     private fun refreshNotification(showReopenAction: Boolean) {
         val nm = getSystemService(NotificationManager::class.java) ?: return
         nm.notify(NOTIF_ID, buildNotification(showReopenAction))
-    }
-
-    private fun onBubbleDismissed() {
-        // Swipe-down dismiss: keep the FGS alive (the call is still active),
-        // and surface a "Reopen" action in the notification so the user can
-        // bring the bubble back without leaving the call.
-        refreshNotification(showReopenAction = true)
-    }
-
-    private fun onBubbleTapped() {
-        val phone = phoneE164 ?: return
-        val intent = com.overcall.ui.PanelActivity.newIntent(applicationContext, phone)
-        startActivity(intent)
     }
 
     private fun buildNotification(showReopenAction: Boolean): Notification {

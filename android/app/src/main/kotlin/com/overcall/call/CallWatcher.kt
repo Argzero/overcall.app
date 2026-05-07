@@ -9,6 +9,7 @@ import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.overcall.overlay.OverlayController
 import com.overcall.service.OverCallForegroundService
 import java.util.concurrent.Executors
 
@@ -30,11 +31,43 @@ import java.util.concurrent.Executors
  * dialer's redirection service to remain reliable. The CallLog fallback
  * covers the same ground at the cost of a ~100ms post-OFFHOOK delay.
  */
-class CallWatcher(private val context: Context) {
+/**
+ * Telephony observer + bubble auto-attacher.
+ *
+ * The overlay is owned by [com.overcall.OverCallApp] (app-scoped singleton)
+ * and shared with [OverCallForegroundService]. We attach the overlay
+ * directly from the OFFHOOK callback because Android 14+ blocks
+ * `startForegroundService()` from background for FGS_TYPE_PHONE_CALL unless
+ * the app is the default dialer or holds MANAGE_OWN_CALLS (a VoIP-app
+ * permission, not appropriate for call observers like us). Attaching the
+ * overlay window directly only requires SYSTEM_ALERT_WINDOW (the user
+ * grants that explicitly in OverCall's home screen) and works regardless
+ * of foreground/background state.
+ *
+ * The FGS is still started best-effort for [com.overcall.registry.WalletWatcher]
+ * (the WS subscription that drives "received payment" bubble updates); a
+ * failed FGS start no longer hides the bubble.
+ */
+class CallWatcher(
+    private val context: Context,
+    private val overlay: OverlayController,
+    /**
+     * Hot state of the active call's E.164. Pushed to `null` on IDLE,
+     * pushed to the captured number on OFFHOOK. Activities that depend
+     * on a live call context (notably PanelActivity) collect this and
+     * close themselves when it goes null.
+     */
+    private val activeCallPhone: kotlinx.coroutines.flow.MutableStateFlow<String?>,
+) {
 
     private val tm = context.getSystemService(TelephonyManager::class.java)
     private val executor = Executors.newSingleThreadExecutor()
     private var registered = false
+
+    private var currentPhoneE164: String? = null
+
+    /** Read by [com.overcall.OverCallApp.onBubbleTapped] to launch the panel. */
+    fun currentPhone(): String? = currentPhoneE164
 
     @Suppress("MissingPermission")
     private val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
@@ -73,35 +106,105 @@ class CallWatcher(private val context: Context) {
     }
 
     private fun onOffhook() {
-        val number = readMostRecentCallNumber()
-        Log.i(TAG, "OFFHOOK: number=${number ?: "<unknown>"}")
-        val intent = Intent(context, OverCallForegroundService::class.java).apply {
-            action = OverCallForegroundService.ACTION_START
-            putExtra(OverCallForegroundService.EXTRA_PHONE, number)
+        // Defensive: any throw on the telephony executor thread takes
+        // OverCall down and silently kills the bubble auto-attach. Wrap
+        // and log instead.
+        val number = try {
+            readMostRecentCallNumber()
+        } catch (t: Throwable) {
+            Log.w(TAG, "readMostRecentCallNumber crashed", t)
+            null
         }
-        ContextCompat.startForegroundService(context, intent)
+        Log.i(TAG, "OFFHOOK: number=${number ?: "<unknown>"}")
+        currentPhoneE164 = number
+        activeCallPhone.value = number
+
+        // Attach the overlay directly. Independent of the FGS.
+        try {
+            overlay.setRecipient(number)
+            val attached = overlay.attach()
+            if (!attached) {
+                Log.w(TAG, "overlay.attach() returned false — SYSTEM_ALERT_WINDOW likely missing")
+            }
+        } catch (t: Throwable) {
+            Log.e(TAG, "overlay attach crashed", t)
+        }
+
+        // Best-effort: also start the FGS so WalletWatcher can subscribe
+        // for "received payment" events. On Android 14+ this throws
+        // ForegroundServiceStartNotAllowedException from background;
+        // catch and continue — the bubble is the user-visible feature
+        // and is already attached.
+        try {
+            val intent = Intent(context, OverCallForegroundService::class.java).apply {
+                action = OverCallForegroundService.ACTION_START
+                putExtra(OverCallForegroundService.EXTRA_PHONE, number)
+            }
+            ContextCompat.startForegroundService(context, intent)
+        } catch (t: Throwable) {
+            Log.w(TAG, "FGS start blocked (bubble still attached): ${t.javaClass.simpleName}: ${t.message}")
+        }
     }
 
     private fun onIdle() {
-        Log.i(TAG, "IDLE: stopping foreground service")
-        context.stopService(Intent(context, OverCallForegroundService::class.java))
+        Log.i(TAG, "IDLE: detaching bubble + stopping foreground service")
+        currentPhoneE164 = null
+        // Clear the overlay's cached recipient so a manual re-attach
+        // (e.g. via the home-screen button) doesn't show the just-ended
+        // call's phone number.
+        try { overlay.setRecipient(null) } catch (_: Throwable) { /* ignore */ }
+        try { overlay.detach() } catch (t: Throwable) {
+            Log.w(TAG, "overlay.detach failed: ${t.message}")
+        }
+        // Signal call end to PanelActivity (it self-finishes when this
+        // goes null so the user can't pay post-hoc to a hung-up caller).
+        activeCallPhone.value = null
+        try {
+            context.stopService(Intent(context, OverCallForegroundService::class.java))
+        } catch (t: Throwable) {
+            Log.w(TAG, "stopService failed: ${t.message}")
+        }
     }
 
-    /** Best-effort read of the most recent CallLog entry. Null if no permission. */
+
+    /**
+     * Best-effort read of the most recent CallLog entry. Returns null on
+     * any failure: missing permission, vendor-specific provider quirks,
+     * empty log, etc. Never throws — a CallLog read failure must NOT kill
+     * the OFFHOOK handler (otherwise the foreground service never starts
+     * and the bubble never attaches).
+     *
+     * Note on the LIMIT clause: stock Android historically accepted
+     * "DATE DESC LIMIT 1" inline in sortOrder, but Samsung One UI
+     * (and modern AOSP) rejects it as "Invalid token LIMIT" to block
+     * SQL-injection-style suffix tricks. The Bundle query API
+     * (ContentResolver.QUERY_ARG_LIMIT, API 26+) is the supported path.
+     */
     private fun readMostRecentCallNumber(): String? {
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALL_LOG)
             != PackageManager.PERMISSION_GRANTED) return null
         val cursor = try {
+            val args = android.os.Bundle().apply {
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, "${CallLog.Calls.DATE} DESC")
+                putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, 1)
+            }
             context.contentResolver.query(
                 CallLog.Calls.CONTENT_URI,
                 arrayOf(CallLog.Calls.NUMBER),
-                null,
-                null,
-                "${CallLog.Calls.DATE} DESC LIMIT 1",
+                args,
+                /* cancellationSignal */ null,
             )
-        } catch (_: SecurityException) { null } ?: return null
-        return cursor.use {
-            if (it.moveToFirst()) it.getString(0)?.takeIf { s -> s.isNotBlank() } else null
+        } catch (t: Throwable) {
+            Log.w(TAG, "CallLog read failed: ${t.javaClass.simpleName}: ${t.message}")
+            null
+        } ?: return null
+        return try {
+            cursor.use {
+                if (it.moveToFirst()) it.getString(0)?.takeIf { s -> s.isNotBlank() } else null
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "CallLog cursor read failed: ${t.javaClass.simpleName}: ${t.message}")
+            null
         }
     }
 

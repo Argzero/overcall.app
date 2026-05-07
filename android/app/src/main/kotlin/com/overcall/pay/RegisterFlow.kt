@@ -49,6 +49,7 @@ class RegisterFlow(
         preferredReceive: SolanaPublicKey = OverCallConfig.DUSDC,
         flags: UInt = 0u,
     ): Result {
+        Log.i(TAG, "registerWithSolFee: enter (phone=$phoneE164, owner=${owner.base58().take(8)}…)")
         val attestation = try {
             attestor.attest(phoneE164, owner)
         } catch (t: Throwable) {
@@ -58,17 +59,22 @@ class RegisterFlow(
                     "This device may not have a hardware-backed Keystore.",
             )
         }
+        Log.i(TAG, "registerWithSolFee: attestation ok (kind=${attestation.kind})")
 
         val treasury = try {
             registry.fetchConfig().treasury
         } catch (t: Throwable) {
+            Log.e(TAG, "fetchConfig failed", t)
             return Result.Failure("RegistryConfig fetch failed: ${t.message ?: t::class.simpleName}")
         }
+        Log.i(TAG, "registerWithSolFee: fetchConfig ok (treasury=${treasury.base58().take(8)}…)")
         val blockhashBase58 = try {
             rpc.getLatestBlockhash()
         } catch (t: Throwable) {
+            Log.e(TAG, "getLatestBlockhash failed", t)
             return Result.Failure("RPC blockhash fetch failed: ${t.message ?: t::class.simpleName}")
         }
+        Log.i(TAG, "registerWithSolFee: blockhash ok (${blockhashBase58.take(8)}…)")
         val recentBlockhash = SolanaPublicKey.from(blockhashBase58)
 
         val ix = PhoneRegistryProgram.registerWithSolFee(
@@ -89,8 +95,10 @@ class RegisterFlow(
         )
         val txBytes = Transaction(message).serialize()
 
+        Log.i(TAG, "registerWithSolFee: about to call mwa.signAndSend (txBytes=${txBytes.size}B)")
         val sigs = mwa.signAndSend(sender, listOf(txBytes))
             ?: return Result.Failure("Wallet rejected or no wallet installed")
+        Log.i(TAG, "registerWithSolFee: mwa.signAndSend returned ${sigs.size} sig(s)")
         val sig = sigs.firstOrNull()
             ?: return Result.Failure("Wallet returned no signature")
 

@@ -36,7 +36,8 @@ import kotlin.math.abs
 class OverlayController(
     private val context: Context,
     private val onDismissed: () -> Unit = {},
-    private val onTap: () -> Unit = {},
+    /** Receives the phone E.164 currently set on the bubble (or null if none). */
+    private val onTap: (phoneE164: String?) -> Unit = {},
 ) {
 
     private val wm: WindowManager =
@@ -50,8 +51,16 @@ class OverlayController(
     fun setRecipient(phoneE164: String?) {
         this.phoneE164 = phoneE164
         // If already attached, refresh the label
-        bubble?.findViewById<TextView>(LABEL_ID)?.text = phoneE164 ?: ""
+        bubble?.findViewById<TextView>(LABEL_ID)?.text = labelText(phoneE164)
     }
+
+    /**
+     * Bubble label text. Always leads with "OverCall" so the floating
+     * pill identifies the app even when the phone number isn't known
+     * (manual re-attach, missed CallLog read, etc.).
+     */
+    private fun labelText(phoneE164: String?): CharSequence =
+        if (phoneE164.isNullOrBlank()) "OverCall" else "OverCall · $phoneE164"
 
     /**
      * Update the bubble to the recipient-variant payment-received card.
@@ -111,7 +120,7 @@ class OverlayController(
 
         val pill = TextView(context).apply {
             id = LABEL_ID
-            text = phoneE164 ?: ""
+            text = labelText(phoneE164)
             setTextColor(Color.WHITE)
             textSize = 14f
             setPadding(labelPaddingPx, labelPaddingPx / 2, labelPaddingPx, labelPaddingPx / 2)
@@ -124,13 +133,15 @@ class OverlayController(
         }
 
         val icon = ImageView(context).apply {
-            setImageResource(android.R.drawable.sym_call_outgoing)
-            setColorFilter(Color.WHITE)
+            // App icon — instantly recognizable as OverCall vs the system
+            // phone glyph (which made the bubble look like a generic in-call
+            // accessory, not our app).
+            setImageResource(com.overcall.R.mipmap.ic_launcher)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(0xFF1D4ED8.toInt())
             }
-            val padPx = (12 * density).toInt()
+            val padPx = (8 * density).toInt()
             setPadding(padPx, padPx, padPx, padPx)
         }
 
@@ -189,7 +200,7 @@ class OverlayController(
                     val dx = event.rawX - startRawX
                     val dy = event.rawY - startRawY
                     when {
-                        !moved -> onTap()
+                        !moved -> onTap(phoneE164)
                         dy > dismissThresholdPx && abs(dy) > abs(dx) -> {
                             // straight-down swipe past threshold — dismiss
                             detach()
