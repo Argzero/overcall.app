@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dev flavor: NO Seeker hardware feature gate, so this APK installs and runs on
+  the emulator and on stock Android (Galaxy S23). Capability detection at runtime
+  via DeviceProfile.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"/>

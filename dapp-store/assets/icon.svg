@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background: deep midnight purple -->
+  <rect width="512" height="512" fill="#15082E"/>
+
+  <!-- Sparkles in the background, scattered -->
+  <g fill="#F5D670">
+    <circle cx="80" cy="90" r="3"/>
+    <circle cx="100" cy="80" r="1.5"/>
+    <circle cx="430" cy="140" r="3.5"/>
+    <circle cx="60" cy="240" r="2"/>
+    <circle cx="450" cy="350" r="2.5"/>
+    <circle cx="150" cy="450" r="3"/>
+    <circle cx="420" cy="420" r="2"/>
+    <circle cx="90" cy="380" r="1.5"/>
+  </g>
+
+  <!-- Trail: stacked angled rectangles fading toward the upper-left -->
+  <g transform="translate(312 290) rotate(-30)">
+    <rect x="-340" y="-22" width="320" height="44" fill="#F5D670" opacity="0.10" rx="22"/>
+    <rect x="-260" y="-16" width="240" height="32" fill="#F5D670" opacity="0.22" rx="16"/>
+    <rect x="-180" y="-10" width="160" height="20" fill="#F5D670" opacity="0.42" rx="10"/>
+    <rect x="-110" y="-6"  width="100" height="12" fill="#F5D670" opacity="0.70" rx="6"/>
+  </g>
+
+  <!-- Coin: outer ring + inner face -->
+  <circle cx="312" cy="290" r="124" fill="#C99517"/>
+  <circle cx="312" cy="290" r="108" fill="#F5D670"/>
+
+  <!-- "O" mark on the coin face -->
+  <circle cx="312" cy="290" r="62" fill="none" stroke="#15082E" stroke-width="20"/>
+
+  <!-- Tiny accent star sparkle near the coin's leading edge -->
+  <g transform="translate(394 232)" fill="#FFFFFF">
+    <path d="M 0 -10 L 2 -2 L 10 0 L 2 2 L 0 10 L -2 2 L -10 0 L -2 -2 Z"/>
+  </g>
+</svg>

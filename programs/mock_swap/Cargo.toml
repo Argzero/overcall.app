@@ -1,0 +1,24 @@
+[package]
+name        = "mock_swap"
+version     = "0.1.0"
+edition     = "2021"
+description = "OverCall devnet swap mock — Jupiter substitute with fixture prices"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name       = "mock_swap"
+
+[features]
+no-entrypoint  = []
+no-idl         = []
+no-log-ix-name = []
+cpi            = ["no-entrypoint"]
+default        = []
+idl-build      = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "1.0.2", features = ["init-if-needed"] }
+anchor-spl  = { version = "1.0.2" }
+
+[lints]
+workspace = true

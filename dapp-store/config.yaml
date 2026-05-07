@@ -1,0 +1,93 @@
+# Solana Mobile dApp Store listing config.
+#
+# Usage:
+#   npx --yes @solana-mobile/dapp-publishing init   # one-time, generates keypairs
+#   npx @solana-mobile/dapp-publishing validate     # lint this file + assets
+#   npx @solana-mobile/dapp-publishing create publisher
+#   npx @solana-mobile/dapp-publishing create app
+#   npx @solana-mobile/dapp-publishing create release
+#   npx @solana-mobile/dapp-publishing publish submit
+#
+# See dapp-store/README.md for the full flow.
+
+publisher:
+  name: OverCall
+  address: ""              # filled by `dapp-publishing create publisher` (mints publisher NFT)
+  website: https://overcall.app
+  email: support@overcall.app
+
+app:
+  name: OverCall
+  address: ""              # filled by `dapp-publishing create app` (mints app NFT)
+  android_package: com.overcall      # seeker flavor uses base package id
+
+release:
+  address: ""              # filled by `dapp-publishing create release`
+  media:
+    - purpose: icon
+      uri: assets/icon.png        # 512x512 — already shipped
+      mime: image/png
+    - purpose: banner
+      uri: assets/banner.png      # 1200x630
+      mime: image/png
+    - purpose: featureGraphic
+      uri: assets/banner.png      # alias for now
+      mime: image/png
+    # Screenshots — TODO: capture from emulator/device once Settings tab is in.
+    - purpose: screenshot
+      uri: assets/screenshot-home.png
+      mime: image/png
+    - purpose: screenshot
+      uri: assets/screenshot-bubble.png
+      mime: image/png
+    - purpose: screenshot
+      uri: assets/screenshot-pay.png
+      mime: image/png
+
+  catalog:
+    en-US:
+      name: OverCall — Pay-by-phone for Solana
+      short_description: Send crypto over a phone call.
+      long_description: |
+        OverCall turns your phone calls into a payment surface. While you're
+        on a call, a floating bubble appears over the dialer; tap it to send
+        SOL or any supported SPL token to whoever you're talking to. Their
+        wallet is resolved on-chain from their phone number — no usernames,
+        no addresses to copy.
+
+        - Hardware-attested registration. Every phone number proves SIM
+          ownership through Android Keystore (or the Seeker's Seed Vault),
+          so squatting other people's numbers doesn't work.
+        - 0.01% additive fee. Recipients always get the full nominal
+          amount; the fee is charged to the sender on top.
+        - Public on-chain registry. Phone numbers map to wallets via a
+          Solana program; anyone can resolve, no servers in the path.
+        - Solana Mobile Stack native. Mobile Wallet Adapter signing,
+          Seed Vault on Seeker, no key custody by the app itself.
+      new_in_version: |
+        First public release.
+      saga_features_localized: ""
+      copyright: "© 2026 OverCall"
+      privacy_policy_url: https://overcall.app/privacy
+      website: https://overcall.app
+      tagline_short: Pay-by-phone for Solana
+
+  files:
+    - purpose: install
+      uri: ../android/app/build/outputs/apk/seeker/release/app-seeker-release.apk
+
+  android_details:
+    min_sdk: 31
+    new_in_version_localized: First public release.
+    saga_features_localized: ""
+
+solana_mobile_dapp_publisher_portal:
+  google_store_package: ""
+  testing_instructions: |
+    1. Install on a Seeker device.
+    2. Open OverCall, tap "Connect Wallet" — bundled Seed Vault wallet pops.
+    3. Approve. App reads the SIM and shows your number.
+    4. Tap "Register My Number" — Seed Vault signs a hardware attestation
+       and the on-chain register tx in one wallet round-trip.
+    5. Place a phone call to another registered Seeker. The bubble appears
+       over the dialer; tap to send.

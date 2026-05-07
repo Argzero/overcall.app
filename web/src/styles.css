@@ -1,0 +1,20 @@
+@import "@solana/wallet-adapter-react-ui/styles.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+  color: #F5D670;
+  background-color: #15082E;
+}
+
+/* Override the wallet button so it lines up with the OverCall theme. */
+.wallet-adapter-button-trigger {
+  background-color: #F5D670 !important;
+  color: #15082E !important;
+  border-radius: 9999px !important;
+  font-weight: 700 !important;
+}

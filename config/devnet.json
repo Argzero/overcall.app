@@ -1,0 +1,39 @@
+{
+  "cluster": "https://api.devnet.solana.com",
+  "deployer": "6SWskncXVVNQ4ubLFnMCS3jwd7BTJ3sy5BRaFoFJRNKR",
+  "treasury": "6SWskncXVVNQ4ubLFnMCS3jwd7BTJ3sy5BRaFoFJRNKR",
+  "programs": {
+    "phone_registry": "3NMgh3Urpb9opAeCWMGHtE1Tm5G4aFzTxQX4Wf4uqDNx",
+    "faucet": "B9BkxtYa9VVgzoTLsJjfAjAyvf4ZV9yMbjGQCg77HVKm",
+    "mock_swap": "8oVCvsywAcrx1LewLgPAJhfHyUHn2d7UREUdgXzWagH3"
+  },
+  "pdas": {
+    "registry_config": "D1cUSzrZcRtitWsWP59dHXN4aMDEkxAvNrWPhTFbh48p",
+    "faucet_config": "5aSXZhaSzznoLxJkU7LDcJYzn9s8TGxgYGyhBHn6DNJv",
+    "faucet_mint_authority": "Cq1tZ6Foi7owDAdAHiZaMcfz8MP4JoMJES5Yt8wmVPuq",
+    "swap_oracle": "GuCXzty3pHmmLwtm9qbod5XyCD33RegGdNjnQXZZgno7"
+  },
+  "mints": {
+    "dSKR": {
+      "mint": "6K5waTfHBfww76rkr6zwGqk52EhCiWBpAwNoxt4GUzyU",
+      "decimals": 6,
+      "drip_amount": "100000000"
+    },
+    "dUSDC": {
+      "mint": "2Mj7KWrVUYExnivQj1y7NtQA2FQWSvfrkYaAL83KGpeH",
+      "decimals": 6,
+      "drip_amount": "100000000"
+    },
+    "dWSOL": {
+      "mint": "ACR8rbY1XZdnpoxWekbMm3hw8SzANMYcrR31BPXcNH2d",
+      "decimals": 9,
+      "drip_amount": "1000000000"
+    }
+  },
+  "config": {
+    "registration_fee_sol_lamports": "1000000",
+    "registration_fee_spl_amount": "100000",
+    "payment_fee_bps": 1,
+    "faucet_cooldown_seconds": "3600"
+  }
+}

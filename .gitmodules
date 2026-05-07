@@ -1,0 +1,6 @@
+[submodule "tools/mwa"]
+	path = tools/mwa
+	url = https://github.com/solana-mobile/mobile-wallet-adapter.git
+[submodule "tools/seed-vault-sdk"]
+	path = tools/seed-vault-sdk
+	url = https://github.com/solana-mobile/seed-vault-sdk.git

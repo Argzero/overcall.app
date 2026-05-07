@@ -1,0 +1,35 @@
+# Rust / Anchor
+target/
+.anchor/
+**/*.rs.bk
+
+# Node
+node_modules/
+dist/
+dist-*/
+.turbo/
+*.tsbuildinfo
+
+# Android / Gradle / Kotlin
+build/
+.gradle/
+.kotlin/
+local.properties
+captures/
+.cxx/
+
+# Solana keypairs — never commit
+*-keypair.json
+id.json
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

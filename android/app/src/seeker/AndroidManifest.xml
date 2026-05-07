@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Seeker flavor: feature-gated to Solana Seeker hardware via uses-feature. The
+  dApp Store will only surface this APK on Seeker devices. Other Android phones
+  cannot install it.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-feature
+        android:name="com.solanamobile.feature.seeker"
+        android:required="true"/>
+</manifest>

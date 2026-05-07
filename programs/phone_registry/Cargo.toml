@@ -1,0 +1,25 @@
+[package]
+name        = "phone_registry"
+version     = "0.1.0"
+edition     = "2021"
+description = "OverCall public on-chain phone-number registry"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name       = "phone_registry"
+
+[features]
+no-entrypoint  = []
+no-idl         = []
+no-log-ix-name = []
+cpi            = ["no-entrypoint"]
+default        = []
+idl-build      = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "1.0.2", features = ["init-if-needed"] }
+anchor-spl  = { version = "1.0.2" }
+mock_swap   = { path = "../mock_swap", features = ["cpi"] }
+
+[lints]
+workspace = true

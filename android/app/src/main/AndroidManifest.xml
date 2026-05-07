@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Telephony — call detection and SIM E.164 read -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS"/>
+    <uses-permission android:name="android.permission.READ_CALL_LOG"/>
+    <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS"
+        tools:ignore="ProtectedPermissions"/>
+
+    <!-- Floating bubble overlay -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+
+    <!-- Foreground service: phoneCall lets us run during calls; specialUse covers
+         the always-on overlay observer outside the active call. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- RPC over HTTPS / WebSocket -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <!-- Telephony hardware required (no purpose on tablets) -->
+    <uses-feature android:name="android.hardware.telephony" android:required="true"/>
+
+    <application
+        android:name=".OverCallApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.OverCall"
+        tools:targetApi="35">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.OverCall">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="overcall" android:host="invite"/>
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.OverCallForegroundService"
+            android:foregroundServiceType="phoneCall|specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="active_call_pay_overlay"/>
+        </service>
+
+        <activity
+            android:name=".ui.PanelActivity"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.OverCallTransparent"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""/>
+
+        <activity
+            android:name=".webhandoff.WebHandoffActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.OverCall"
+            android:label="@string/app_name">
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="overcall" android:host="web-register"/>
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>
