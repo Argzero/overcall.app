@@ -2,6 +2,8 @@
 
 In-call crypto payments for Solana Seeker. Detects active phone calls and overlays a swipe-dismissable bubble for sending crypto to the other party's wallet, resolved via a public on-chain phone-number registry.
 
+NOTE: fixing bug with github creds atm...
+
 **Status:** devnet only. See `docs/superpowers/plans/` for implementation plans.
 
 ## Layout
