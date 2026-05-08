@@ -39,5 +39,5 @@ anchor test
 ## Test surfaces
 
 - **Emulator:** Android AVD with `solana-mobile/mock-mwa-wallet` for MWA signing on devnet.
-- **Galaxy S23:** sideloaded `dev` flavor, real telephony, MWA via Backpack on devnet.
-- **Seeker:** `seeker` flavor, MWA via bundled SVS wallet on devnet (Backpack fallback if SVS rejects devnet).
+- **Galaxy A23:** sideloaded `dev` flavor, real telephony, MWA via Phantom (tested) or probably other wallets on devnet.
+- **Seeker:** `seeker` flavor, MWA via bundled SVS wallet on devnet (Phantom fallback if SVS rejects devnet).
